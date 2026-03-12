@@ -1,9 +1,8 @@
 # How the HTTP Demo Works — Detailed Explanation
 
 ---
-*oh this took a while*
-![stressed](https://github.com/peterktsitsi/images/blob/main/stressed.gif)
-
+*oh this took a while*<br>
+![stressed](https://github.com/peterktsitsi/images/blob/main/xxx-nasty.gif)
 ## Overview
 
 - The demo is a single HTML file that makes a **real, live HTTP GET request** to `https://httpbin.org/get` — a free public API specifically built for testing HTTP
