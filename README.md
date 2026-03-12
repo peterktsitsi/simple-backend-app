@@ -1,4 +1,4 @@
-# How the HTTP Demo Works — Detailed Explanation
+# How the HTTP Demo Works
 
 ---
 *oh this took a while*<br>
