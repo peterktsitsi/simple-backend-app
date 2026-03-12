@@ -1,0 +1,560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>HTTP in Action</title>
+  <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:ital,wght@0,400;0,500;0,600;1,400&family=IBM+Plex+Sans:wght@400;500&display=swap" rel="stylesheet">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --bg: #0d1117;
+      --surface: #161b22;
+      --border: #30363d;
+      --text: #e6edf3;
+      --muted: #7d8590;
+      --green: #3fb950;
+      --blue: #58a6ff;
+      --orange: #f0883e;
+      --red: #f85149;
+      --yellow: #e3b341;
+      --purple: #bc8cff;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: 'IBM Plex Sans', sans-serif;
+      min-height: 100vh;
+      padding: 2rem 1rem;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 2.5rem;
+      animation: fadeUp 0.6s ease both;
+    }
+
+    header .badge {
+      display: inline-block;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      letter-spacing: 0.15em;
+      text-transform: uppercase;
+      color: var(--green);
+      border: 1px solid var(--green);
+      padding: 0.25rem 0.75rem;
+      border-radius: 100px;
+      margin-bottom: 1rem;
+    }
+
+    header h1 {
+      font-size: clamp(1.8rem, 4vw, 2.8rem);
+      font-weight: 500;
+      letter-spacing: -0.02em;
+      margin-bottom: 0.5rem;
+    }
+
+    header p {
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+
+    .demo {
+      max-width: 860px;
+      margin: 0 auto;
+    }
+
+    /* ── URL bar ── */
+    .url-bar {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 0.75rem 1rem;
+      margin-bottom: 1.5rem;
+      animation: fadeUp 0.6s 0.1s ease both;
+    }
+
+    .method-badge {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.75rem;
+      font-weight: 600;
+      background: #1c3a2e;
+      color: var(--green);
+      border: 1px solid #2d5a40;
+      padding: 0.3rem 0.6rem;
+      border-radius: 6px;
+      white-space: nowrap;
+    }
+
+    .url-text {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.82rem;
+      color: var(--blue);
+      flex: 1;
+      word-break: break-all;
+    }
+
+    .btn {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.55rem 1.2rem;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      transition: transform 0.1s, opacity 0.2s;
+      white-space: nowrap;
+    }
+    .btn:active { transform: scale(0.97); }
+    .btn-send {
+      background: var(--green);
+      color: #000;
+    }
+    .btn-send:disabled { opacity: 0.4; cursor: not-allowed; }
+
+    /* ── Network diagram ── */
+    .network {
+      display: grid;
+      grid-template-columns: 1fr 80px 1fr;
+      align-items: center;
+      gap: 0;
+      margin-bottom: 1.5rem;
+      animation: fadeUp 0.6s 0.2s ease both;
+    }
+
+    .node {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      padding: 1rem;
+      text-align: center;
+    }
+
+    .node-icon { font-size: 2rem; margin-bottom: 0.4rem; }
+    .node-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .pipe {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      padding: 0 4px;
+      position: relative;
+    }
+
+    .pipe-line {
+      width: 100%;
+      height: 2px;
+      background: var(--border);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .pipe-packet {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      opacity: 0;
+    }
+
+    .pipe-req .pipe-packet { background: var(--blue); }
+    .pipe-res .pipe-packet { background: var(--green); }
+
+    .pipe-label {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.6rem;
+      color: var(--muted);
+    }
+
+    @keyframes packetRight {
+      0%   { left: -12px; opacity: 1; }
+      100% { left: 100%;  opacity: 1; }
+    }
+    @keyframes packetLeft {
+      0%   { left: 100%;  opacity: 1; }
+      100% { left: -12px; opacity: 1; }
+    }
+
+    .sending .pipe-req .pipe-packet   { animation: packetRight 0.6s ease-in-out forwards; }
+    .receiving .pipe-res .pipe-packet { animation: packetLeft  0.6s ease-in-out forwards; }
+
+    /* ── Panels ── */
+    .panels {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 1rem;
+      animation: fadeUp 0.6s 0.3s ease both;
+    }
+
+    @media (max-width: 600px) { .panels { grid-template-columns: 1fr; } }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .panel-header {
+      display: flex;
+      align-items: center;
+      gap: 0.5rem;
+      padding: 0.65rem 1rem;
+      border-bottom: 1px solid var(--border);
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.72rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .panel-dot {
+      width: 8px; height: 8px;
+      border-radius: 50%;
+    }
+
+    .panel-body {
+      padding: 1rem;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.78rem;
+      line-height: 1.7;
+      min-height: 180px;
+    }
+
+    .line { display: flex; gap: 0.5rem; }
+    .key   { color: var(--purple); }
+    .val   { color: var(--orange); }
+    .str   { color: var(--green); }
+    .num   { color: var(--blue); }
+    .dim   { color: var(--muted); }
+    .status-ok  { color: var(--green); font-weight: 600; }
+    .status-err { color: var(--red);   font-weight: 600; }
+
+    /* ── Timeline ── */
+    .timeline-wrap {
+      margin-top: 1rem;
+      animation: fadeUp 0.6s 0.4s ease both;
+    }
+
+    .timeline-title {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.7rem;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+      margin-bottom: 0.6rem;
+    }
+
+    .timeline {
+      display: flex;
+      flex-direction: column;
+      gap: 0;
+    }
+
+    .tl-event {
+      display: flex;
+      align-items: flex-start;
+      gap: 0.75rem;
+      padding: 0.5rem 0;
+      border-left: 2px solid var(--border);
+      padding-left: 1rem;
+      margin-left: 0.5rem;
+      position: relative;
+      opacity: 0;
+      transform: translateX(-6px);
+      transition: opacity 0.3s, transform 0.3s;
+    }
+
+    .tl-event.visible {
+      opacity: 1;
+      transform: translateX(0);
+    }
+
+    .tl-event::before {
+      content: '';
+      position: absolute;
+      left: -5px;
+      top: 0.65rem;
+      width: 8px; height: 8px;
+      border-radius: 50%;
+      background: var(--bg);
+      border: 2px solid var(--border);
+    }
+
+    .tl-event.done::before { border-color: var(--green); background: var(--green); }
+    .tl-event.active::before { border-color: var(--blue); background: var(--blue); }
+    .tl-event.err::before { border-color: var(--red); background: var(--red); }
+
+    .tl-time {
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.65rem;
+      color: var(--muted);
+      white-space: nowrap;
+      min-width: 48px;
+    }
+
+    .tl-msg {
+      font-size: 0.82rem;
+    }
+
+    /* ── Response body ── */
+    .response-body-wrap {
+      margin-top: 1rem;
+      animation: fadeUp 0.6s 0.5s ease both;
+    }
+
+    .response-box {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 10px;
+      overflow: hidden;
+    }
+
+    .response-content {
+      padding: 1.25rem;
+      font-family: 'IBM Plex Mono', monospace;
+      font-size: 0.82rem;
+      line-height: 1.6;
+      color: var(--muted);
+      min-height: 60px;
+      white-space: pre-wrap;
+      word-break: break-word;
+    }
+
+    .response-content.loaded { color: var(--str); }
+
+    @keyframes fadeUp {
+      from { opacity: 0; transform: translateY(12px); }
+      to   { opacity: 1; transform: translateY(0); }
+    }
+
+    /* idle blinking cursor */
+    .cursor::after {
+      content: '▋';
+      animation: blink 1s step-end infinite;
+      color: var(--green);
+    }
+    @keyframes blink { 50% { opacity: 0; } }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="badge">Live Demo</div>
+  <h1>HTTP in Action</h1>
+  <p>Watch a real HTTP request happen, step by step.</p>
+</header>
+
+<div class="demo">
+
+  <!-- URL Bar -->
+  <div class="url-bar">
+    <span class="method-badge">GET</span>
+    <span class="url-text" id="urlDisplay">https://httpbin.org/get</span>
+    <button class="btn btn-send" id="sendBtn" onclick="sendRequest()">Send Request ↗</button>
+  </div>
+
+  <!-- Network diagram -->
+  <div class="network" id="network">
+    <div class="node">
+      <div class="node-icon">💻</div>
+      <div class="node-label">Your Browser</div>
+    </div>
+    <div class="pipe" id="pipe">
+      <div class="pipe-label" id="pipeReqLabel" style="color:transparent">→ REQUEST</div>
+      <div class="pipe-line pipe-req"><div class="pipe-packet"></div></div>
+      <div class="pipe-line pipe-res"><div class="pipe-packet"></div></div>
+      <div class="pipe-label" id="pipeResLabel" style="color:transparent">RESPONSE ←</div>
+    </div>
+    <div class="node">
+      <div class="node-icon">🌐</div>
+      <div class="node-label">Server</div>
+    </div>
+  </div>
+
+  <!-- Request / Response headers panels -->
+  <div class="panels">
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-dot" style="background:var(--blue)"></div>
+        HTTP Request
+      </div>
+      <div class="panel-body" id="reqPanel">
+        <div class="line dim">// press "Send Request" to begin</div>
+      </div>
+    </div>
+    <div class="panel">
+      <div class="panel-header">
+        <div class="panel-dot" style="background:var(--green)"></div>
+        HTTP Response
+      </div>
+      <div class="panel-body" id="resPanel">
+        <div class="line dim">// waiting for server...</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Timeline -->
+  <div class="timeline-wrap">
+    <div class="timeline-title">Event Timeline</div>
+    <div class="timeline" id="timeline"></div>
+  </div>
+
+  <!-- Response body -->
+  <div class="response-body-wrap">
+    <div class="response-box">
+      <div class="panel-header">
+        <div class="panel-dot" style="background:var(--orange)"></div>
+        Response Body
+      </div>
+      <div class="response-content cursor" id="responseBody">Waiting for response...</div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+  const URL = 'https://httpbin.org/get';
+  let running = false;
+  let startTime;
+
+  function ts() {
+    return `+${(performance.now() - startTime).toFixed(0)}ms`;
+  }
+
+  function addEvent(msg, state = 'done') {
+    const tl = document.getElementById('timeline');
+    const ev = document.createElement('div');
+    ev.className = 'tl-event ' + state;
+    ev.innerHTML = `<span class="tl-time">${ts()}</span><span class="tl-msg">${msg}</span>`;
+    tl.appendChild(ev);
+    // trigger animation
+    requestAnimationFrame(() => ev.classList.add('visible'));
+    ev.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    return ev;
+  }
+
+  function renderRequest() {
+    document.getElementById('reqPanel').innerHTML = `
+      <div class="line"><span class="key">GET</span><span class="val"> /get</span><span class="dim"> HTTP/1.1</span></div>
+      <div class="line"><span class="dim">Host: </span><span class="str">httpbin.org</span></div>
+      <div class="line"><span class="dim">Accept: </span><span class="str">application/json</span></div>
+      <div class="line"><span class="dim">Accept-Encoding: </span><span class="str">gzip, deflate</span></div>
+      <div class="line"><span class="dim">Connection: </span><span class="str">keep-alive</span></div>
+      <div class="line"><span class="dim">User-Agent: </span><span class="str">Mozilla/5.0</span></div>
+    `;
+  }
+
+  function renderResponse(res, elapsed) {
+    const statusClass = res.ok ? 'status-ok' : 'status-err';
+    document.getElementById('resPanel').innerHTML = `
+      <div class="line"><span class="dim">HTTP/1.1 </span><span class="${statusClass}">${res.status} ${res.statusText}</span></div>
+      <div class="line"><span class="dim">Content-Type: </span><span class="str">${res.headers.get('content-type') || 'application/json'}</span></div>
+      <div class="line"><span class="dim">Server: </span><span class="str">${res.headers.get('server') || 'httpbin'}</span></div>
+      <div class="line"><span class="dim">Access-Control-Allow-Origin: </span><span class="str">*</span></div>
+      <div class="line"><span class="dim">Round-trip time: </span><span class="num">${elapsed}ms</span></div>
+    `;
+  }
+
+  function animatePipe(direction) {
+    const pipe = document.getElementById('pipe');
+    const reqLabel = document.getElementById('pipeReqLabel');
+    const resLabel = document.getElementById('pipeResLabel');
+
+    if (direction === 'req') {
+      reqLabel.style.color = 'var(--blue)';
+      pipe.classList.add('sending');
+      setTimeout(() => pipe.classList.remove('sending'), 700);
+    } else {
+      resLabel.style.color = 'var(--green)';
+      pipe.classList.add('receiving');
+      setTimeout(() => pipe.classList.remove('receiving'), 700);
+    }
+  }
+
+  async function sendRequest() {
+    if (running) return;
+    running = true;
+    startTime = performance.now();
+
+    const btn = document.getElementById('sendBtn');
+    btn.disabled = true;
+    btn.textContent = 'Sending...';
+
+    // Reset
+    document.getElementById('timeline').innerHTML = '';
+    document.getElementById('reqPanel').innerHTML = '<div class="line dim">// building request...</div>';
+    document.getElementById('resPanel').innerHTML = '<div class="line dim">// waiting...</div>';
+    document.getElementById('responseBody').textContent = 'Sending request...';
+    document.getElementById('responseBody').className = 'response-content cursor';
+    document.getElementById('pipeReqLabel').style.color = 'transparent';
+    document.getElementById('pipeResLabel').style.color = 'transparent';
+
+    addEvent('DNS lookup: resolving <strong>httpbin.org</strong>', 'done');
+
+    await sleep(200);
+    addEvent('TCP connection established', 'done');
+
+    await sleep(150);
+    addEvent('TLS handshake complete (HTTPS)', 'done');
+
+    await sleep(100);
+    addEvent('Sending HTTP GET request...', 'active');
+    renderRequest();
+    animatePipe('req');
+
+    const t0 = performance.now();
+    let res, data;
+    try {
+      res = await fetch(URL);
+      const elapsed = Math.round(performance.now() - t0);
+
+      addEvent(`Server responded: <span class="status-ok">${res.status} ${res.statusText}</span>`, 'done');
+      animatePipe('res');
+
+      await sleep(100);
+      addEvent('Receiving response headers', 'done');
+      renderResponse(res, elapsed);
+
+      await sleep(150);
+      addEvent('Reading response body...', 'active');
+
+      data = await res.json();
+
+      await sleep(100);
+      addEvent('Response fully received ✓', 'done');
+
+      const body = document.getElementById('responseBody');
+      body.className = 'response-content loaded';
+      body.textContent = JSON.stringify(data, null, 2);
+
+    } catch (err) {
+      addEvent('❌ Network error: ' + err.message, 'err');
+      document.getElementById('responseBody').textContent = 'Error: ' + err.message;
+    }
+
+    btn.disabled = false;
+    btn.textContent = 'Send Again ↗';
+    running = false;
+  }
+
+  function sleep(ms) {
+    return new Promise(r => setTimeout(r, ms));
+  }
+</script>
+</body>
+</html>
